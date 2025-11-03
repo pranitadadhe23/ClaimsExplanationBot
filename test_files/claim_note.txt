@@ -1,0 +1,14 @@
+Claim ID: 48290  
+Patient Name: Ramesh Kumar  
+Date of Admission: 12 Aug 2024  
+Date of Discharge: 16 Aug 2024  
+Hospital Name: LifeCare Multispeciality Hospital  
+
+Diagnosis: Acute Appendicitis  
+Treatment: Appendectomy  
+
+Claim Amount Submitted: ₹58,000  
+Amount Approved: ₹0  
+Claim Status: REJECTED  
+
+Reason for Rejection: The health insurance policy expired on 10 Aug 2024, two days before admission.  
