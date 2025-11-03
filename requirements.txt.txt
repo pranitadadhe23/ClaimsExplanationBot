@@ -1,0 +1,18 @@
+# Core dependencies
+streamlit
+pdfplumber
+Pillow
+pathlib
+tempfile
+
+# OCR and Vision
+python-doctr[torch]
+opencv-python-headless<5
+torch
+torchvision
+torchaudio
+
+# NLP and Summarization
+transformers
+sentencepiece
+langdetect
