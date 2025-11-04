@@ -1,4 +1,4 @@
-# Core Streamlit and Utilities
+# Streamlit + Utilities
 streamlit==1.40.1
 pillow
 langdetect
@@ -18,5 +18,5 @@ torchaudio
 transformers
 python-doctr[torch]
 
-# Headless OpenCV (for server environments)
-opencv-python-headless<5
+# Headless OpenCV (for Streamlit Cloud)
+opencv-python-headless==4.8.0.76
