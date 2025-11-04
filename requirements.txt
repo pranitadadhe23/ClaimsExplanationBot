@@ -11,3 +11,12 @@ python-doctr[torch]
 opencv-python-headless<5
 pdf2image
 pypdfium2
+streamlit
+pdfplumber
+easyocr
+pillow
+transformers
+torch
+pytesseract
+opencv-python-headless
+python-doctr
