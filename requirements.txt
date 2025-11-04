@@ -1,22 +1,22 @@
+# Core Streamlit and Utilities
 streamlit==1.40.1
-pdfplumber==0.11.0
 pillow
+langdetect
+sentencepiece
+
+# PDF and OCR Tools
+pdfplumber==0.11.0
+pdf2image
+pypdfium2
+easyocr
+pytesseract
+
+# AI/ML + Document Understanding
 torch
 torchvision
 torchaudio
 transformers
-sentencepiece
-langdetect
 python-doctr[torch]
+
+# Headless OpenCV (for server environments)
 opencv-python-headless<5
-pdf2image
-pypdfium2
-streamlit
-pdfplumber
-easyocr
-pillow
-transformers
-torch
-pytesseract
-opencv-python-headless
-python-doctr
