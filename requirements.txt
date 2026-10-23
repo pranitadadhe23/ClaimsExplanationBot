@@ -1,11 +1,9 @@
-
 streamlit==1.40.1
 numpy==1.26.4
-Pillow
+Pillow>=10.0,<12
 pdfplumber==0.11.0
 pypdfium2
-python-doctr==1.1.0
+python-doctr[torch]==1.1.0
 opencv-python-headless==4.10.0.84
 torch==2.5.1
 torchvision==0.20.1
-transformers==4.46.3
