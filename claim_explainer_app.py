@@ -1,162 +1,128 @@
-# ============================================================
-# 💎 Insurance Claim Explanation App - Using DocTR (No EasyOCR/Tesseract)
-# ============================================================
+            present_in_text = any(term in v["text"].lower() for v in documents.values())
+            # Only phrase as a check because a text mention doesn't establish that a file is absent.
+            if present_in_text:
+                findings.append({
+                    "level": "info", "title": f"Check supporting evidence: {term.title()}",
+                    "detail": f"The phrase “{term}” appears in the uploaded text. Confirm whether the actual document is included and complete; text mention alone cannot prove that it is missing.",
+                    "sources": [n for n, v in documents.items() if term in v["text"].lower()]
+                })
+    if not findings:
+        findings.append({
+            "level": "good", "title": "No obvious date/amount differences detected",
+            "detail": "The simple checks did not find a clear difference in dates or currency amounts. This is not proof that the documents agree or that the claim is covered.",
+            "sources": list(documents.keys())
+        })
+    return findings[:15]
 
-import streamlit as st
-import pdfplumber
-from doctr.io import DocumentFile
-from doctr.models import ocr_predictor
-from transformers import pipeline
-import tempfile
-import os
-from pathlib import Path
-
-# ============================================================
-# 🎨 Streamlit Page Config
-# ============================================================
-
-st.set_page_config(
-    page_title="Insurance Claim Explainer",
-    page_icon="🧾",
-    layout="centered",
-)
-
-# Custom CSS
-st.markdown("""
-    <style>
-    body {
-        background: linear-gradient(180deg, #eef2f3, #ffffff);
+def report_payload(documents, findings):
+    return {
+        "product": "CLAIMX Claim Detective",
+        "created_at": datetime.now().isoformat(timespec="seconds"),
+        "notice": "Prototype findings are review prompts, not legal or coverage decisions.",
+        "documents": [
+            {"filename": name, "method": info["method"], "characters_extracted": len(info["text"])}
+            for name, info in documents.items()
+        ],
+        "findings": findings,
     }
-    .main-title {
-        text-align: center;
-        font-size: 36px !important;
-        color: #1f4e79;
-        font-weight: 700;
-    }
-    .subtitle {
-        text-align: center;
-        color: #4b5563;
-        font-size: 18px;
-        margin-bottom: 20px;
-    }
-    .result-box {
-    background-color: #f9fafb;
-    color: #1f2937;  /* 🟢 Dark gray text color for readability */
-    padding: 20px;
-    border-radius: 10px;
-    border: 1px solid #e5e7eb;
-    box-shadow: 0 2px 8px rgba(0,0,0,0.05);
-    white-space: pre-wrap;  /* Keep text formatting */
-    font-size: 16px;
-    line-height: 1.5;
 
-    }
-    .stButton>button {
-        background-color: #1f4e79;
-        color: white;
-        border-radius: 10px;
-        font-size: 16px;
-        padding: 8px 20px;
-    }
-    </style>
-""", unsafe_allow_html=True)
+if "documents" not in st.session_state:
+    st.session_state.documents = {}
+if "findings" not in st.session_state:
+    st.session_state.findings = []
 
-# ============================================================
-# 🧠 Load Models
-# ============================================================
+left, right = st.columns([1.1, .9], gap="large")
+with left:
+    st.markdown('<div class="panel">', unsafe_allow_html=True)
+    st.subheader("📂 Upload your case files")
+    st.caption("Upload a claim letter, policy document, bills, medical report, or other supporting files.")
+    uploads = st.file_uploader(
+        "Choose documents",
+        type=["pdf", "png", "jpg", "jpeg", "tif", "tiff", "bmp", "txt"],
+        accept_multiple_files=True,
+        help="Supported: PDF, image, and TXT files. Keep each file under your hosting provider's upload limit."
+    )
+    if uploads:
+        st.caption(f"{len(uploads)} file(s) selected.")
+    analyze = st.button("🔎 Start investigation", type="primary", use_container_width=True)
+    st.markdown("</div>", unsafe_allow_html=True)
 
-@st.cache_resource
-def load_models():
-    ocr_model = ocr_predictor(pretrained=True)
-    summarizer = pipeline("summarization", model="sshleifer/distilbart-cnn-12-6")
-    return ocr_model, summarizer
-
-ocr_model, summarizer = load_models()
-
-# ============================================================
-# 🧩 Helper Functions
-# ============================================================
-
-def extract_text_from_pdf(pdf_path):
-    """Extract text using pdfplumber or OCR fallback"""
-    text = ""
-    with pdfplumber.open(pdf_path) as pdf:
-        for page in pdf.pages:
-            page_text = page.extract_text()
-            if page_text:
-                text += page_text
-    if text.strip():
-        return text.strip()
-    
-    # Fallback to OCR if PDF text not selectable
-    doc = DocumentFile.from_pdf(pdf_path)
-    result = ocr_model(doc)
-    return result.render()
-
-def extract_text_from_image(image_path):
-    """Extract text from image using DocTR OCR"""
-    doc = DocumentFile.from_images(image_path)
-    result = ocr_model(doc)
-    return result.render()
-
-def summarize_claim(text):
-    """Summarize insurance claim text"""
-    if not text.strip():
-        return "⚠️ No text detected in the document."
-    text = text[:3000]  # avoid model limit overflow
-    result = summarizer(text, max_length=130, min_length=40, do_sample=False)
-    return result[0]['summary_text'].strip()
-
-def process_claim_file(file_path):
-    """Main pipeline: Extract → Summarize"""
-    file_ext = Path(file_path).suffix.lower()
-    if file_ext == ".pdf":
-        raw_text = extract_text_from_pdf(file_path)
-    elif file_ext in [".jpg", ".jpeg", ".png"]:
-        raw_text = extract_text_from_image(file_path)
-    elif file_ext == ".txt":
-        with open(file_path, "r", encoding="utf-8") as f:
-            raw_text = f.read()
-    else:
-        return "⚠️ Unsupported file type."
-
-    if not raw_text.strip():
-        return "⚠️ Could not extract any readable text."
-    return summarize_claim(raw_text)
-
-# ============================================================
-# 🖥️ Streamlit UI
-# ============================================================
-
-st.markdown('<h1 class="main-title">🧾 Insurance Claim Explanation</h1>', unsafe_allow_html=True)
-st.markdown('<p class="subtitle">Summarize claim PDFs or images into simple English.</p>', unsafe_allow_html=True)
-
-option = st.sidebar.radio("Select Input Mode:", ["📝 Enter Text", "📂 Upload File"])
-
-if option == "📝 Enter Text":
-    claim_text = st.text_area("✍️ Enter or paste claim details below:", height=180)
-    if st.button("🔍 Explain Claim"):
-        if claim_text.strip():
-            with st.spinner("Summarizing..."):
-                summary = summarize_claim(claim_text)
-            st.success("✅ Claim summarized successfully!")
-            st.markdown(f'<div class="result-box"><h4>🧾 Customer-Friendly Explanation</h4><p>{summary}</p></div>', unsafe_allow_html=True)
+    if analyze:
+        if not uploads:
+            st.warning("Upload at least one file first.")
         else:
-            st.warning("⚠️ Please enter some text.")
-else:
-    uploaded_file = st.file_uploader("📎 Upload a file (.pdf, .jpg, .jpeg, .png, .txt):", type=["pdf", "jpg", "jpeg", "png", "txt"])
-    if uploaded_file:
-        suffix = Path(uploaded_file.name).suffix
-        temp_path = tempfile.NamedTemporaryFile(delete=False, suffix=suffix).name
-        with open(temp_path, "wb") as f:
-            f.write(uploaded_file.read())
+            extracted = {}
+            progress = st.progress(0, text="Preparing investigation…")
+            for idx, uploaded in enumerate(uploads):
+                with st.spinner(f"Reading {uploaded.name}…"):
+                    text_value, method = extract_upload(uploaded)
+                    extracted[uploaded.name] = {"text": text_value, "method": method}
+                progress.progress((idx + 1) / len(uploads), text=f"Read {idx+1} of {len(uploads)} files")
+            st.session_state.documents = extracted
+            st.session_state.findings = investigate(extracted)
+            progress.empty()
+            st.success("Investigation complete. Review each finding against the source documents.")
 
-        st.info(f"✅ File uploaded: **{uploaded_file.name}**")
+    docs = st.session_state.documents
+    if docs:
+        st.markdown('<div class="panel">', unsafe_allow_html=True)
+        st.subheader("🧠 Investigation pipeline")
+        steps = [
+            ("Document extraction", "Completed"),
+            ("Date and amount scan", "Completed"),
+            ("Cross-document review prompts", "Completed"),
+            ("Evidence review", "Human verification required"),
+        ]
+        for label, status in steps:
+            c1, c2 = st.columns([3, 1])
+            c1.write("✅ " + label)
+            c2.caption(status)
+        st.markdown("</div>", unsafe_allow_html=True)
 
-        if st.button("🔍 Explain Claim"):
-            with st.spinner("Extracting and summarizing..."):
-                summary = process_claim_file(temp_path)
-            st.success("✅ Claim summarized successfully!")
-            st.markdown(f'<div class="result-box"><h4>🧾 Customer-Friendly Explanation</h4><p>{summary}</p></div>', unsafe_allow_html=True)
+with right:
+    docs = st.session_state.documents
+    findings = st.session_state.findings
+    st.markdown('<div class="panel">', unsafe_allow_html=True)
+    st.subheader("📊 Case overview")
+    a, b, c = st.columns(3)
+    a.markdown(f'<div class="kpi"><div class="kpi-label">Documents</div><div class="kpi-value">{len(docs)}</div></div>', unsafe_allow_html=True)
+    b.markdown(f'<div class="kpi"><div class="kpi-label">Review prompts</div><div class="kpi-value">{len(findings)}</div></div>', unsafe_allow_html=True)
+    c.markdown(f'<div class="kpi"><div class="kpi-label">OCR engine</div><div class="kpi-value" style="font-size:1.05rem">{"Ready" if DOCTR_AVAILABLE else "Unavailable"}</div></div>', unsafe_allow_html=True)
+    st.markdown("</div>", unsafe_allow_html=True)
 
-        os.remove(temp_path)
+    if not DOCTR_AVAILABLE:
+        st.warning("DocTR could not be imported in this environment. Text-based PDFs and TXT files may still work; image/scanned-PDF OCR needs DocTR installed correctly.")
+
+    st.markdown('<div class="panel">', unsafe_allow_html=True)
+    st.subheader("🚩 Investigation findings")
+    if not findings:
+        st.info("Upload at least two documents and start an investigation to compare evidence.")
+    for i, finding in enumerate(findings, start=1):
+        level = finding["level"]
+        css = "finding-good" if level == "good" else ("finding-warn" if level == "warn" else "finding-info")
+        icon = "🟢" if level == "good" else ("🟠" if level == "warn" else "🔵")
+        st.markdown(f'<div class="finding {css}"><strong>{icon} {i}. {finding["title"]}</strong><br><span class="small-muted">{finding["detail"]}</span></div>', unsafe_allow_html=True)
+        if finding.get("sources"):
+            st.caption("Sources: " + ", ".join(finding["sources"]))
+    st.markdown("</div>", unsafe_allow_html=True)
+
+if st.session_state.documents:
+    st.markdown("## 🧾 Evidence explorer")
+    tabs = st.tabs(list(st.session_state.documents.keys()))
+    for tab, (name, info) in zip(tabs, st.session_state.documents.items()):
+        with tab:
+            st.caption(f"Extraction method: {info['method']} · {len(info['text'])} characters")
+            if info["text"]:
+                st.text_area("Extracted text", info["text"], height=260, key="text_" + hashlib.md5(name.encode()).hexdigest())
+            else:
+                st.warning("No text could be extracted from this file.")
+    payload = report_payload(st.session_state.documents, st.session_state.findings)
+    st.download_button(
+        "⬇️ Download investigation report (JSON)",
+        data=json.dumps(payload, indent=2, ensure_ascii=False),
+        file_name="claimx_investigation_report.json",
+        mime="application/json",
+        use_container_width=True,
+    )
+
+st.markdown("---")
